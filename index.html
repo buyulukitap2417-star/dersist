@@ -171,7 +171,6 @@
         // UI için yardımcı fonksiyonlar
         const showError = (msg) => {
             const e = document.getElementById('auth-error');
-            // Supabase'in 36 saniye güvenlik uyarısını Türkçeleştirelim
             if (msg.includes("36 seconds")) {
                 msg = "Güvenlik nedeniyle çok sık deneme yaptınız. Lütfen yaklaşık 36 saniye sonra tekrar deneyin.";
             } else if (msg.includes("Invalid login credentials")) {
@@ -183,7 +182,7 @@
 
         const hideError = () => document.getElementById('auth-error').classList.add('hidden');
 
-        // Global fonksiyonlar
+        // Giriş Yap
         window.handleLogin = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -198,6 +197,7 @@
             if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Giriş Yap"; }
         };
 
+        // Kaydol (Doğrulama olmadan direkt giriş yapması için)
         window.handleSignup = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -205,12 +205,30 @@
             
             if(!email || !password) return showError("E-posta ve şifre gereklidir.");
 
-            btn.disabled = true; btn.textContent = "Kaydolunuyor...";
+            btn.disabled = true; btn.textContent = "Hesap oluşturuluyor...";
             hideError();
 
             const { data, error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
-            else { alert("Kayıt başarılı! E-postanızı onayladıktan sonra giriş yapabilirsiniz."); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
+            
+            if (error) { 
+                showError(error.message); 
+                btn.disabled = false; 
+                btn.textContent = "Yeni Hesap Oluştur"; 
+            } else {
+                // Eğer Supabase ayarlarında 'Confirm email' kapalıysa data.session dolu gelir
+                if (data.session) {
+                    // Otomatik giriş gerçekleşti, AuthChange dinleyicisi dashboard'a yönlendirecek
+                } else {
+                    // Eğer 'Confirm email' açıksa, kullanıcıyı uyarmak yerine otomatik giriş denemesi yapalım
+                    // (Ancak doğrulama açıksa bu hata döndürebilir, bu yüzden Dashboard'dan kapatılması şarttır)
+                    const loginRes = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (loginRes.error) {
+                        showError("Hesap oluşturuldu! Lütfen Dashboard'dan 'Confirm Email' ayarını kapatın veya e-postanızı kontrol edin.");
+                        btn.disabled = false; 
+                        btn.textContent = "Yeni Hesap Oluştur"; 
+                    }
+                }
+            }
         };
 
         window.handleLogout = async () => {
