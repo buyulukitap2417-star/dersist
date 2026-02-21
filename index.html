@@ -25,7 +25,7 @@
         <div class="glass p-8 rounded-2xl w-full max-w-md shadow-2xl">
             <div class="text-center mb-8">
                 <h1 class="text-4xl font-extrabold gradient-text italic">StudyFlow AI</h1>
-                <p class="text-gray-400 mt-2">Supabase ve Yapay Zeka Destekli Akademi</p>
+                <p class="text-gray-400 mt-2">Akıllı Ders Çalışma Platformu</p>
             </div>
 
             <div class="space-y-4">
@@ -43,7 +43,7 @@
                     <button id="signup-btn" onclick="handleSignup()" class="w-full bg-white/5 hover:bg-white/10 text-indigo-400 font-medium py-3 rounded-xl border border-white/10 transition transform active:scale-95">Yeni Hesap Oluştur</button>
                 </div>
             </div>
-            <div id="auth-error" class="hidden mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg text-center"></div>
+            <div id="auth-error" class="hidden mt-4 p-3 bg-red-500/20 border border-red-500/40 text-red-200 text-xs rounded-lg text-center leading-relaxed"></div>
         </div>
     </div>
 
@@ -69,7 +69,7 @@
                 <h2 class="text-3xl font-bold flex items-center gap-3">
                     <i data-lucide="layout-dashboard" class="text-indigo-400"></i> Akademik Programım
                 </h2>
-                <p class="text-gray-500 mt-1">Eklediğin dersleri ve AI özetlerini buradan yönetebilirsin.</p>
+                <p class="text-gray-500 mt-1">Derslerin, videoların ve AI notların burada saklanır.</p>
             </header>
             
             <div id="course-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -92,8 +92,8 @@
             <div id="video-container" class="w-full aspect-video max-w-5xl shadow-2xl rounded-2xl overflow-hidden border border-white/10 bg-slate-900 group relative"></div>
 
             <div class="mt-6 w-full max-w-5xl">
-                <div class="flex items-center gap-2 mb-3 text-gray-400 text-sm">
-                    <i data-lucide="list-video" class="w-4 h-4"></i> Video Listesi
+                <div class="flex items-center gap-2 mb-3 text-gray-400 text-sm font-semibold uppercase tracking-wider">
+                    <i data-lucide="list-video" class="w-4 h-4 text-indigo-400"></i> Müfredat Videoları
                 </div>
                 <div id="topic-nav" class="flex gap-3 overflow-x-auto pb-4 custom-scrollbar"></div>
             </div>
@@ -168,7 +168,22 @@
         let courses = [];
         let topicIndex = 0;
 
-        // Modül içindeki fonksiyonları window nesnesine bağlayarak HTML onclick'lerinden erişilebilir hale getiriyoruz
+        // UI için yardımcı fonksiyonlar
+        const showError = (msg) => {
+            const e = document.getElementById('auth-error');
+            // Supabase'in 36 saniye güvenlik uyarısını Türkçeleştirelim
+            if (msg.includes("36 seconds")) {
+                msg = "Güvenlik nedeniyle çok sık deneme yaptınız. Lütfen yaklaşık 36 saniye sonra tekrar deneyin.";
+            } else if (msg.includes("Invalid login credentials")) {
+                msg = "Hatalı e-posta veya şifre girdiniz.";
+            }
+            e.textContent = msg;
+            e.classList.remove('hidden');
+        };
+
+        const hideError = () => document.getElementById('auth-error').classList.add('hidden');
+
+        // Global fonksiyonlar
         window.handleLogin = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
@@ -177,6 +192,8 @@
             if(!email || !password) return showError("E-posta ve şifre gereklidir.");
             
             btn.disabled = true; btn.textContent = "Giriş yapılıyor...";
+            hideError();
+            
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Giriş Yap"; }
         };
@@ -189,9 +206,11 @@
             if(!email || !password) return showError("E-posta ve şifre gereklidir.");
 
             btn.disabled = true; btn.textContent = "Kaydolunuyor...";
+            hideError();
+
             const { data, error } = await supabaseClient.auth.signUp({ email, password });
             if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
-            else { alert("Kayıt başarılı! Giriş yapabilirsiniz."); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
+            else { alert("Kayıt başarılı! E-postanızı onayladıktan sonra giriş yapabilirsiniz."); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
         };
 
         window.handleLogout = async () => {
@@ -235,7 +254,6 @@
             lucide.createIcons();
         };
 
-        // --- YAPAY ZEKA ENTEGRASYONU (GEMINI) ---
         async function generateAIContent(courseName, topics) {
             const topicTitles = topics.map(t => t.title).join(", ");
             const prompt = `Ders: ${courseName}. Konular: ${topicTitles}. 
@@ -296,7 +314,8 @@
                 alert("Supabase Hatası: " + error.message);
             } else {
                 window.closeModal('add-course-modal');
-                resetForm();
+                document.getElementById('course-name').value = ""; 
+                document.getElementById('topics-container').innerHTML = ""; 
                 fetchCourses();
             }
 
@@ -356,7 +375,6 @@
             }
         };
 
-        // --- ÇALIŞMA MODU ---
         window.startStudy = (id) => {
             const course = courses.find(c => c.id === id);
             if (!course) return;
@@ -401,23 +419,11 @@
             document.body.style.overflow = 'auto';
         };
 
-        // --- YARDIMCI FONKSİYONLAR ---
         window.showModal = (id) => {
             document.getElementById(id).classList.remove('hidden');
             if(id === 'add-course-modal' && document.getElementById('topics-container').innerHTML === "") window.addTopicField();
         };
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
-        
-        function resetForm() { 
-            document.getElementById('course-name').value = ""; 
-            document.getElementById('topics-container').innerHTML = ""; 
-        }
-        
-        function showError(msg) { 
-            const e = document.getElementById('auth-error'); 
-            e.textContent = msg; 
-            e.classList.remove('hidden'); 
-        }
 
     </script>
 </body>
