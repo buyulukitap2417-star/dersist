@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StudyFlow AI - Supabase & Gemini</title>
+    <title>StudyFlow AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -158,8 +158,7 @@
         // --- KONFİGÜRASYON ---
         const SUPABASE_URL = "https://gorjzplbtbwohsldvdmt.supabase.co"; 
         const SUPABASE_ANON_KEY = "sb_publishable_wPdJ2JgIkR6jxDjmGDGfBg_D7Cye8Ae"; 
-        const geminiApiKey = "AIzaSyAjy45LZgWKZqRMrC6XEvMg0qRDu9KZqBM";
-        const apiKey = typeof __apiKey !== 'undefined' ? __apiKey : geminiApiKey;
+        const apiKey = ""; // Gemini API otomatik sağlanır
 
         // Supabase İstemcisi Başlatma
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -168,67 +167,42 @@
         let courses = [];
         let topicIndex = 0;
 
-        // UI için yardımcı fonksiyonlar
+        // UI Yardımcıları
         const showError = (msg) => {
             const e = document.getElementById('auth-error');
-            if (msg.includes("36 seconds")) {
-                msg = "Güvenlik nedeniyle çok sık deneme yaptınız. Lütfen yaklaşık 36 saniye sonra tekrar deneyin.";
-            } else if (msg.includes("Invalid login credentials")) {
-                msg = "Hatalı e-posta veya şifre girdiniz.";
-            }
+            if (msg.includes("36 seconds")) msg = "Güvenlik nedeniyle beklemelisiniz. Lütfen 36 saniye sonra tekrar deneyin.";
+            else if (msg.includes("Invalid login credentials")) msg = "E-posta veya şifre hatalı.";
+            else if (msg.includes("Email not confirmed")) msg = "Lütfen e-postanızı onaylayın veya Dashboard'dan doğrulamayı kapatın.";
             e.textContent = msg;
             e.classList.remove('hidden');
         };
 
         const hideError = () => document.getElementById('auth-error').classList.add('hidden');
 
-        // Giriş Yap
+        // Giriş
         window.handleLogin = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
             const btn = document.getElementById('login-btn');
-            
-            if(!email || !password) return showError("E-posta ve şifre gereklidir.");
-            
+            if(!email || !password) return showError("Lütfen tüm alanları doldurun.");
             btn.disabled = true; btn.textContent = "Giriş yapılıyor...";
             hideError();
-            
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Giriş Yap"; }
         };
 
-        // Kaydol (Doğrulama olmadan direkt giriş yapması için)
+        // Kayıt
         window.handleSignup = async () => {
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
             const btn = document.getElementById('signup-btn');
-            
-            if(!email || !password) return showError("E-posta ve şifre gereklidir.");
-
+            if(!email || !password) return showError("Lütfen tüm alanları doldurun.");
             btn.disabled = true; btn.textContent = "Hesap oluşturuluyor...";
             hideError();
-
             const { data, error } = await supabaseClient.auth.signUp({ email, password });
-            
-            if (error) { 
-                showError(error.message); 
-                btn.disabled = false; 
-                btn.textContent = "Yeni Hesap Oluştur"; 
-            } else {
-                // Eğer Supabase ayarlarında 'Confirm email' kapalıysa data.session dolu gelir
-                if (data.session) {
-                    // Otomatik giriş gerçekleşti, AuthChange dinleyicisi dashboard'a yönlendirecek
-                } else {
-                    // Eğer 'Confirm email' açıksa, kullanıcıyı uyarmak yerine otomatik giriş denemesi yapalım
-                    // (Ancak doğrulama açıksa bu hata döndürebilir, bu yüzden Dashboard'dan kapatılması şarttır)
-                    const loginRes = await supabaseClient.auth.signInWithPassword({ email, password });
-                    if (loginRes.error) {
-                        showError("Hesap oluşturuldu! Lütfen Dashboard'dan 'Confirm Email' ayarını kapatın veya e-postanızı kontrol edin.");
-                        btn.disabled = false; 
-                        btn.textContent = "Yeni Hesap Oluştur"; 
-                    }
-                }
-            }
+            if (error) { showError(error.message); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
+            else if (data.session) { /* Giriş yapıldı */ }
+            else { alert("Kayıt başarılı! Giriş yapabilirsiniz."); btn.disabled = false; btn.textContent = "Yeni Hesap Oluştur"; }
         };
 
         window.handleLogout = async () => {
@@ -236,7 +210,7 @@
             location.reload();
         };
 
-        // Auth durumu dinleyicisi
+        // Oturum Dinleyici
         supabaseClient.auth.onAuthStateChange((event, session) => {
             currentUser = session?.user;
             if (currentUser) {
@@ -250,7 +224,7 @@
             lucide.createIcons();
         });
 
-        // --- DERS VE KONU YÖNETİMİ ---
+        // Konu Ekleme
         window.addTopicField = () => {
             const container = document.getElementById('topics-container');
             const currentIdx = topicIndex++;
@@ -262,36 +236,35 @@
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
                 <div>
-                    <input type="text" placeholder="Konu Başlığı (Örn: Polinomlarda Bölme)" class="topic-title w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                    <input type="text" placeholder="Konu Başlığı" class="topic-title w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <input type="text" placeholder="YouTube Video Linki" class="topic-url w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                    <input type="text" placeholder="YouTube Video Linki" class="topic-url w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
                 </div>
             `;
             container.appendChild(div);
             lucide.createIcons();
         };
 
+        // AI Özet Oluşturma
         async function generateAIContent(courseName, topics) {
             const topicTitles = topics.map(t => t.title).join(", ");
-            const prompt = `Ders: ${courseName}. Konular: ${topicTitles}. 
-            Lütfen bu konuların tamamını kapsayan, öğrencinin ders çalışırken rehber alabileceği profesyonel, maddeler halinde ve Türkçe bir çalışma özeti hazırla. 
-            Karmaşık terimleri basitçe açıkla ve önemli sınav tüyoları ekle.`;
+            const userPrompt = `Ders: ${courseName}. Konular: ${topicTitles}. Bu konular için detaylı ve madde madde bir Türkçe çalışma özeti hazırla.`;
             
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }] }] })
                 });
                 const result = await response.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI özeti hazırlanamadı ancak dersin kayıtlı.";
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI özeti oluşturulamadı.";
             } catch (err) {
-                console.error("AI Hatası:", err);
-                return "Yapay zeka şu an meşgul, ancak videoların üzerinden çalışmaya başlayabilirsin.";
+                return "Yapay zeka şu an meşgul.";
             }
         }
 
+        // Ders Kaydetme
         window.saveCourse = async () => {
             if (!currentUser) return;
             const courseName = document.getElementById('course-name').value;
@@ -300,36 +273,25 @@
             
             const topics = [];
             titleInputs.forEach((input, i) => {
-                if(input.value && urlInputs[i].value) {
-                    topics.push({ title: input.value, url: urlInputs[i].value });
-                }
+                if(input.value && urlInputs[i].value) topics.push({ title: input.value, url: urlInputs[i].value });
             });
 
-            if (!courseName || topics.length === 0) {
-                alert("Lütfen ders adı ve en az bir video/konu girin.");
-                return;
-            }
+            if (!courseName || topics.length === 0) return alert("Ders adı ve en az bir konu gereklidir.");
 
             const btn = document.getElementById('save-course-btn');
             btn.disabled = true;
             document.getElementById('btn-loader').classList.remove('hidden');
-            document.getElementById('btn-text').textContent = "Yapay Zeka Çalışıyor...";
+            document.getElementById('btn-text').textContent = "AI Notları Hazırlanıyor...";
 
             const summary = await generateAIContent(courseName, topics);
 
-            const { data, error } = await supabaseClient
+            const { error } = await supabaseClient
                 .from('courses')
-                .insert([
-                    { 
-                        user_id: currentUser.id, 
-                        name: courseName, 
-                        topics: topics, 
-                        ai_summary: summary 
-                    }
-                ]);
+                .insert([{ user_id: currentUser.id, name: courseName, topics, ai_summary: summary }]);
 
             if (error) {
-                alert("Supabase Hatası: " + error.message);
+                alert("Hata: " + error.message);
+                console.error(error);
             } else {
                 window.closeModal('add-course-modal');
                 document.getElementById('course-name').value = ""; 
@@ -342,17 +304,14 @@
             document.getElementById('btn-text').textContent = "Müfredatı Kaydet ve AI Notlarını Oluştur";
         };
 
+        // Dersleri Getir
         async function fetchCourses() {
             const { data, error } = await supabaseClient
                 .from('courses')
                 .select('*')
                 .eq('user_id', currentUser.id)
                 .order('created_at', { ascending: false });
-            
-            if (!error) {
-                courses = data;
-                renderCourses();
-            }
+            if (!error) { courses = data; renderCourses(); }
         }
 
         function renderCourses() {
@@ -364,20 +323,18 @@
 
             courses.forEach(course => {
                 const card = document.createElement('div');
-                card.className = "glass rounded-3xl p-8 border border-white/5 hover:border-indigo-500/40 transition-all flex flex-col justify-between group shadow-xl hover:shadow-indigo-500/10";
+                card.className = "glass rounded-3xl p-8 border border-white/5 hover:border-indigo-500/40 transition-all flex flex-col justify-between group shadow-xl";
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-start mb-6">
-                            <h4 class="font-extrabold text-2xl text-white group-hover:text-indigo-400 transition-colors truncate w-full pr-4">${course.name}</h4>
-                            <button onclick="deleteCourse('${course.id}')" class="text-gray-600 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-full transition-all"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                            <h4 class="font-extrabold text-2xl text-white truncate w-full pr-4">${course.name}</h4>
+                            <button onclick="deleteCourse('${course.id}')" class="text-gray-600 hover:text-red-400 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                         </div>
-                        <div class="space-y-2 mb-8">
-                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Müfredat İçeriği</p>
-                            ${course.topics.slice(0, 3).map(t => `<p class="text-sm text-gray-400 flex items-center gap-2 truncate"><i data-lucide="check-circle" class="w-4 h-4 text-indigo-500 flex-shrink-0"></i> ${t.title}</p>`).join('')}
-                            ${course.topics.length > 3 ? `<p class="text-xs text-indigo-400 font-bold mt-2">+${course.topics.length - 3} konu daha mevcut</p>` : ''}
+                        <div class="space-y-2 mb-8 text-sm text-gray-400">
+                            ${course.topics.slice(0, 3).map(t => `<p class="truncate">• ${t.title}</p>`).join('')}
                         </div>
                     </div>
-                    <button onclick="startStudy('${course.id}')" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-indigo-900/40 transition transform active:scale-95 flex items-center justify-center gap-2">
+                    <button onclick="startStudy('${course.id}')" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition flex items-center justify-center gap-2">
                         <i data-lucide="play" class="w-4 h-4 fill-current"></i> Çalışmaya Başla
                     </button>
                 `;
@@ -387,29 +344,26 @@
         }
 
         window.deleteCourse = async (id) => {
-            if(confirm("Bu dersi ve tüm notlarını silmek istediğine emin misin?")) {
-                const { error } = await supabaseClient.from('courses').delete().eq('id', id);
-                if (!error) fetchCourses();
+            if(confirm("Silmek istediğinize emin misiniz?")) {
+                await supabaseClient.from('courses').delete().eq('id', id);
+                fetchCourses();
             }
         };
 
         window.startStudy = (id) => {
             const course = courses.find(c => c.id === id);
             if (!course) return;
-
             document.getElementById('study-course-title').textContent = course.name;
-            document.getElementById('ai-summary-text').textContent = course.ai_summary || "AI özeti bu ders için hazır değil.";
-            
+            document.getElementById('ai-summary-text').textContent = course.ai_summary || "Özet hazır değil.";
             const nav = document.getElementById('topic-nav');
             nav.innerHTML = "";
             course.topics.forEach((topic, i) => {
                 const btn = document.createElement('button');
-                btn.className = "px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm whitespace-nowrap hover:bg-indigo-600 hover:text-white transition-all font-semibold flex items-center gap-2 group";
-                btn.innerHTML = `<span class="opacity-30 group-hover:opacity-100">${i+1}.</span> ${topic.title}`;
+                btn.className = "px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm whitespace-nowrap hover:bg-indigo-600 transition-all font-semibold";
+                btn.textContent = `${i+1}. ${topic.title}`;
                 btn.onclick = () => window.loadVideo(topic);
                 nav.appendChild(btn);
             });
-
             window.loadVideo(course.topics[0]);
             document.getElementById('study-mode').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -417,19 +371,12 @@
         };
 
         window.loadVideo = (topic) => {
-            const videoId = extractVideoId(topic.url);
+            const videoId = topic.url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2];
             document.getElementById('study-topic-title').textContent = topic.title;
             document.getElementById('video-container').innerHTML = `
-                <iframe width="100%" height="100%" 
-                src="https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0" 
-                frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1" frameborder="0" allowfullscreen></iframe>
             `;
         };
-
-        function extractVideoId(url) {
-            const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-            return (match && match[2].length === 11) ? match[2] : null;
-        }
 
         window.exitStudyMode = () => {
             document.getElementById('study-mode').classList.add('hidden');
@@ -437,12 +384,8 @@
             document.body.style.overflow = 'auto';
         };
 
-        window.showModal = (id) => {
-            document.getElementById(id).classList.remove('hidden');
-            if(id === 'add-course-modal' && document.getElementById('topics-container').innerHTML === "") window.addTopicField();
-        };
+        window.showModal = (id) => document.getElementById(id).classList.remove('hidden');
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
-
     </script>
 </body>
 </html>
